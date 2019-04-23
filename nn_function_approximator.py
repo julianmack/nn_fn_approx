@@ -157,10 +157,19 @@ def approximate_function(model, fn, name, fn_mean, fn_std):
     print(y_test[0:4])
 
     #Now test results. Just to 3.s.f as we are not waiting for convergence
-    assert torch.allclose(pred, y_test, rtol=1e-03)
+    assert torch.allclose(pred, y_test, rtol=1e-02)
 
     print("ASSERT PASSED. FUNCTION: \'{}\' SUCCESSFULLY APPROXIMATED".format(name.upper()))
     print()
+
+def sample(fn, n_samples = 10000):
+    """Returns sampled mean and std of function"""
+    inputs = gen_train_batch([], n_samples, train_batch_size)
+    x = inputs.apply_(fn).numpy()
+    mean = np.mean(x)
+    np.sqrt(np.mean(abs(x - mean)**2))
+    return mean, std
+
 
 def check_identity():
     """Validate that a network with a single hidden neuron
@@ -201,15 +210,6 @@ def check_linear_poly():
 
     approximate_function(model, poly, "Linear polynomial", fn_mean, fn_std)
 
-def sample(fn, n_samples = 10000):
-    """Returns sampled mean and std of function"""
-    inputs = gen_train_batch([], n_samples, train_batch_size)
-    x = inputs.apply_(fn).numpy()
-    mean = np.mean(x)
-    np.sqrt(np.mean(abs(x - mean)**2))
-    return mean, std
-
-
 
 def check_non_lin_poly():
 
@@ -218,7 +218,7 @@ def check_non_lin_poly():
     # It should also be possible to use a single hidden layer
     # and more hidden neurons
     num_hidden = 2
-    hidden = [4, 2]
+    hidden = [4, 4]
 
     model = VanillaNN(1, 1, num_hidden, hidden)
 
@@ -233,19 +233,21 @@ def check_non_lin_poly():
     # fn_expectation_x_2 = max_size ** 6 / 6.0 - 10.0 * max_size ** 3 / 3.0
     # fn_std = np.sqrt(fn_expectation_x_2 - fn_mean ** 2)
 
+    #expectation and variance sampled
     fn_mean, fn_std = sample(poly)
-    print(fn_mean, fn_std)
     approximate_function(model, poly, "non-linear polynomial", fn_mean, fn_std)
 
 
 
 if __name__ == "__main__":
 
-    #hyperparameters
+    #hyperparameters - I will use these as
+    #(effective) global variables within main()
+
     test_set_size = 100
-    max_size = int(1e3)
+    max_size = int(1e4)
     train_batch_size = test_set_size * 2
-    total_batches = 500
+    total_batches = 1000
     learning_rate = 0.05
     eval_every = 50
 
@@ -258,5 +260,8 @@ if __name__ == "__main__":
     #Check three type of function
     check_identity()
     check_linear_poly()
-    total_batches = 1000 #more are required here
+
+    #Change hyperparameters for non-linear case
+    learning_rate = 0.01
+    total_batches = 1200
     check_non_lin_poly()
