@@ -69,42 +69,15 @@ def gen_train_batch(test, maximum, batch_size):
     matrix = matrix.reshape((-1, 1))
     return matrix
 
-if __name__ == "__main__":
-
-    #hyperparameters
-    test_set_size = 100
-    max_size = int(1e3)
-    train_batch_size = test_set_size * 2
-    total_batches = 500
-    learning_rate = 0.05
-    eval_every = 50
-
-    check_identity()
-
-def check_identity():
-    """Validate that a network with a single hidden neuron
-    (and positive inputs) can learn the identity mapping"""
-
-    #single hidden layer with 1 hidden units:
-    num_hidden = 1
-    hidden = [1]
-
-    model = VanillaNN(1, 1, num_hidden, hidden)
-
-    ## DEFINE FUNCTION TO OPTIMIZE - check that it can learn the identity
-    def function(x):
-        #return float(x * 1/3 - 6)
-        return float(x)
-
-    approximate_function(model, function)
-
-    
-def approximate_function(model, fn):
+def approximate_function(model, fn, name):
     """Takes a model and a function and trains"""
+
+    print("Attempting to approximate {} with the following model:".format(name))
+    print(model)
 
     optimizer = optim.Adam(model.parameters(), learning_rate)
     loss_function = nn.MSELoss()
-    print(model)
+
 
     #For uniform distribution the mean and std are as follows:
     mean = float(max_size / 2)
@@ -131,7 +104,7 @@ def approximate_function(model, fn):
     test_norm = normalize_x(test)
 
     #generate test labels
-    y_test = test.apply_(function)
+    y_test = test.apply_(fn)
 
     #training loop:
     for batch in range(total_batches):
@@ -145,7 +118,7 @@ def approximate_function(model, fn):
         optimizer.zero_grad()
 
         preds = unnormalize_y(model(X))
-        y = train_batch.apply_(function)
+        y = train_batch.apply_(fn)
 
         loss = loss_function(preds, y)
 
@@ -181,5 +154,51 @@ def approximate_function(model, fn):
     print(pred[0:4])
     print(y_test[0:4])
 
-    #Now assert test. Just to 2.d.p as we are not waiting for convergence
-    np.testing.assert_almost_equal(pred, y_test, decimal=2, err_msg='Function was not successfully approximated', verbose=True)
+    #Now test results. Just to 3.s.f as we are not waiting for convergence
+    assert torch.allclose(pred, y_test, rtol=1e-03)
+
+    print("ASSERT PASSED. FUNCTION: \'{}\' SUCCESSFULLY APPROXIMATED".format(name.upper()))
+
+
+def check_identity():
+    """Validate that a network with a single hidden neuron
+    (and positive inputs) can learn the identity mapping"""
+
+    #single hidden layer with 1 hidden units:
+    num_hidden = 1
+    hidden = [1]
+
+    model = VanillaNN(1, 1, num_hidden, hidden)
+
+    ## DEFINE FUNCTION TO OPTIMIZE - check that it can learn the identity
+    def identity(x):
+        return float(x)
+
+    approximate_function(model, identity, "Identity")
+
+def check_polynomial():
+
+    num_hidden = 1
+    hidden = [2]
+
+    model = VanillaNN(1, 1, num_hidden, hidden)
+
+    ## DEFINE FUNCTION TO OPTIMIZE - check that it can learn the identity
+    def poly(x):
+        return float(x * 1/3 - 6)
+
+    approximate_function(model, poly, "Polynomial")
+
+
+if __name__ == "__main__":
+
+    #hyperparameters
+    test_set_size = 100
+    max_size = int(1e3)
+    train_batch_size = test_set_size * 2
+    total_batches = 500
+    learning_rate = 0.05
+    eval_every = 50
+
+    #check_identity()
+    #check_polynomial()
