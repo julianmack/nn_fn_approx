@@ -3,7 +3,7 @@
 
 Short experiment to validate that a NN is able to learn
  functions easily (i.e. to confirm this "universal
-"function approximator idea)
+function approximator" idea)
 
 """
 
@@ -72,7 +72,6 @@ def gen_train_batch(test, maximum, batch_size):
 if __name__ == "__main__":
 
     #hyperparameters
-    verbose = True
     test_set_size = 100
     max_size = int(1e3)
     train_batch_size = test_set_size * 2
@@ -80,49 +79,58 @@ if __name__ == "__main__":
     learning_rate = 0.05
     eval_every = 50
 
+    check_identity()
 
+def check_identity():
+    """Validate that a network with a single hidden neuron
+    (and positive inputs) can learn the identity mapping"""
 
     #single hidden layer with 1 hidden units:
     num_hidden = 1
     hidden = [1]
 
     model = VanillaNN(1, 1, num_hidden, hidden)
-    optimizer = optim.Adam(model.parameters(), learning_rate)
-    loss_function = nn.MSELoss()
-    #loss_function = F.l1_loss
-
-    print(model)
-
-
 
     ## DEFINE FUNCTION TO OPTIMIZE - check that it can learn the identity
     def function(x):
         #return float(x * 1/3 - 6)
         return float(x)
 
+    approximate_function(model, function)
+
+    
+def approximate_function(model, fn):
+    """Takes a model and a function and trains"""
+
+    optimizer = optim.Adam(model.parameters(), learning_rate)
+    loss_function = nn.MSELoss()
+    print(model)
+
     #For uniform distribution the mean and std are as follows:
     mean = float(max_size / 2)
     std = float(max_size / np.sqrt(12))
 
-    fn_mean = function(max_size) / 2.0
-    fn_std = function(max_size) / np.sqrt(12) #When function is linear in x
+    fn_mean = fn(max_size) / 2.0
+    fn_std = fn(max_size) / np.sqrt(12) #When function is linear in x
 
 
-    #Define helper normalizing functions
+    #Define local helper functions to normalize using the mean and std
     #using the mean and std
+
     def normalize_x(x):
         return (x - mean) / std
 
     def unnormalize_y(y):
         return y * fn_std + fn_mean
 
-
     print("Inputs: mean = {:.2f}, std = {:.2f}".format(mean, std))
     print("Function: mean = {:.2f}, std = {:.2f}".format(fn_mean, fn_std))
 
+    #generate test set and normalize
     test = gen_test_set(test_set_size, max_size)
     test_norm = normalize_x(test)
 
+    #generate test labels
     y_test = test.apply_(function)
 
     #training loop:
@@ -168,7 +176,10 @@ if __name__ == "__main__":
     pred = unnormalize_y(pred)
     loss_test = loss_function(pred, y_test).item()
 
-    print("Printing results ...")
+    print("Printing results and sample outputs...")
     print('loss = %.4f, loss_test = %.4f' % ( loss.item(), loss_test))
     print(pred[0:4])
     print(y_test[0:4])
+
+    #Now assert test. Just to 2.d.p as we are not waiting for convergence
+    np.testing.assert_almost_equal(pred, y_test, decimal=2, err_msg='Function was not successfully approximated', verbose=True)
