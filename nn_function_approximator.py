@@ -13,6 +13,16 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import random
+
+
+#Fix all seeds
+SEED = 42
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+torch.cuda.manual_seed(SEED)
+
 
 class VanillaNN(nn.Module):
     def __init__(self, input_size, output_size, num_hidden, hidden):
@@ -69,23 +79,15 @@ def gen_train_batch(test, maximum, batch_size):
     matrix = matrix.reshape((-1, 1))
     return matrix
 
-def approximate_function(model, fn, name):
-    """Takes a model and a function and trains"""
+def approximate_function(model, fn, name, fn_mean, fn_std):
+    """Takes a model and a function and trains.
+    Must pass the valid function mean and std to successfully normalize """
 
     print("Attempting to approximate {} with the following model:".format(name))
     print(model)
 
     optimizer = optim.Adam(model.parameters(), learning_rate)
     loss_function = nn.MSELoss()
-
-
-    #For uniform distribution the mean and std are as follows:
-    mean = float(max_size / 2)
-    std = float(max_size / np.sqrt(12))
-
-    fn_mean = fn(max_size) / 2.0
-    fn_std = fn(max_size) / np.sqrt(12) #When function is linear in x
-
 
     #Define local helper functions to normalize using the mean and std
     #using the mean and std
@@ -158,13 +160,14 @@ def approximate_function(model, fn, name):
     assert torch.allclose(pred, y_test, rtol=1e-03)
 
     print("ASSERT PASSED. FUNCTION: \'{}\' SUCCESSFULLY APPROXIMATED".format(name.upper()))
-
+    print()
 
 def check_identity():
     """Validate that a network with a single hidden neuron
     (and positive inputs) can learn the identity mapping"""
 
-    #single hidden layer with 1 hidden units:
+    #single hidden layer with 1 hidden units.
+    #It should be possible to fully approximate with this
     num_hidden = 1
     hidden = [1]
 
@@ -174,9 +177,14 @@ def check_identity():
     def identity(x):
         return float(x)
 
-    approximate_function(model, identity, "Identity")
+    #For uniform distribution the mean and std are as follows:
+    fn_mean = mean
+    fn_std = std
 
-def check_polynomial():
+
+    approximate_function(model, identity, "Identity", fn_mean, fn_std)
+
+def check_linear_poly():
 
     num_hidden = 1
     hidden = [2]
@@ -187,7 +195,48 @@ def check_polynomial():
     def poly(x):
         return float(x * 1/3 - 6)
 
-    approximate_function(model, poly, "Polynomial")
+    #For uniform distribution the mean and std are as follows:
+    fn_mean = poly(max_size) / 2.0
+    fn_std = poly(max_size) / np.sqrt(12) #When function is linear in x
+
+    approximate_function(model, poly, "Linear polynomial", fn_mean, fn_std)
+
+def sample(fn, n_samples = 10000):
+    """Returns sampled mean and std of function"""
+    inputs = gen_train_batch([], n_samples, train_batch_size)
+    x = inputs.apply_(fn).numpy()
+    mean = np.mean(x)
+    np.sqrt(np.mean(abs(x - mean)**2))
+    return mean, std
+
+
+
+def check_non_lin_poly():
+
+    # Two layers of non-linearity to
+    # efficiently approximate the non-linear polynomial
+    # It should also be possible to use a single hidden layer
+    # and more hidden neurons
+    num_hidden = 2
+    hidden = [4, 2]
+
+    model = VanillaNN(1, 1, num_hidden, hidden)
+
+    ## DEFINE FUNCTION TO OPTIMIZE - check that it can learn the identity
+    def poly(x):
+        return float(x ** 1/3 - 10)
+
+    #expectation calculated by hand
+    # e.g. see: https://en.wikipedia.org/wiki/Variance#Continuous_random_variable
+
+    # fn_mean = max_size ** 5 / 5.0 - 10.0 * max_size ** 2 / 2.0
+    # fn_expectation_x_2 = max_size ** 6 / 6.0 - 10.0 * max_size ** 3 / 3.0
+    # fn_std = np.sqrt(fn_expectation_x_2 - fn_mean ** 2)
+
+    fn_mean, fn_std = sample(poly)
+    print(fn_mean, fn_std)
+    approximate_function(model, poly, "non-linear polynomial", fn_mean, fn_std)
+
 
 
 if __name__ == "__main__":
@@ -200,5 +249,14 @@ if __name__ == "__main__":
     learning_rate = 0.05
     eval_every = 50
 
-    #check_identity()
-    #check_polynomial()
+
+
+    #For uniform distribution the mean and std are as follows:
+    mean = float(max_size / 2)
+    std = float(max_size / np.sqrt(12))
+
+    #Check three type of function
+    check_identity()
+    check_linear_poly()
+    total_batches = 1000 #more are required here
+    check_non_lin_poly()
