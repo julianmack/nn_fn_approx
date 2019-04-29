@@ -28,16 +28,16 @@ class VanillaNN(nn.Module):
     def __init__(self, input_size, output_size, num_hidden, hidden):
         super(VanillaNN, self).__init__()
         assert num_hidden == len(hidden)
-        if not hidden:
+        if not hidden: 
             self.fclayers = nn.ModuleList([nn.Linear(input_size, output_size)])
         else:
             fc1 = nn.Linear(input_size, hidden[0])
             self.fclayers = nn.ModuleList([fc1])
-        for layer_idx in range(num_hidden - 1):
-            fc = nn.Linear(hidden[layer_idx], hidden[layer_idx + 1])
-            self.fclayers.append(fc)
-        fc_last = nn.Linear(hidden[-1], output_size)
-        self.fclayers.append(fc_last)
+            for layer_idx in range(num_hidden - 1):
+                fc = nn.Linear(hidden[layer_idx], hidden[layer_idx + 1])
+                self.fclayers.append(fc)
+            fc_last = nn.Linear(hidden[-1], output_size)
+            self.fclayers.append(fc_last)
 
         #initialize
         for fc in self.fclayers:
